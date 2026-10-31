@@ -1,7 +1,20 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import QRCodeStyling from 'qr-code-styling'
+
+import QRDesigner from './components/QRDesigner'
+
+import {
+  DEFAULT_DESIGN,
+  getContrastInfo,
+  makeQROptions,
+} from './qrDesign'
+
 import './App.css'
+
+// ==========================================
+// QR CODE TYPES
+// ==========================================
 
 const MAIN_TYPES = [
   { id: 'link', label: 'Link / Text', icon: '🔗' },
@@ -17,23 +30,34 @@ const MORE_TYPES = [
   { id: 'event', label: 'Event' },
 ]
 
+// ==========================================
+// INITIAL FORM VALUES
+// ==========================================
+
 const initialFields = {
   linkText: '',
+
   ssid: '',
   wifiPassword: '',
   wifiSecurity: 'WPA',
   wifiHidden: false,
+
   contactName: '',
   contactPhone: '',
   contactEmail: '',
   contactCompany: '',
+
   emailAddress: '',
   emailSubject: '',
   emailBody: '',
+
   phoneNumber: '',
+
   smsNumber: '',
   smsMessage: '',
+
   location: '',
+
   eventTitle: '',
   eventStart: '',
   eventEnd: '',
@@ -41,12 +65,16 @@ const initialFields = {
   eventDescription: '',
 }
 
-// Escape characters reserved by Wi-Fi QR codes
+// ==========================================
+// DATA FORMATTING HELPERS
+// ==========================================
+
+// Escape reserved Wi-Fi QR characters
 function escapeWifi(value) {
   return value.replace(/([\\;,:"])/g, '\\$1')
 }
 
-// Escape characters reserved by vCard and calendar data
+// Escape structured vCard and calendar text
 function escapeStructuredText(value) {
   return value
     .replace(/\\/g, '\\\\')
@@ -55,10 +83,12 @@ function escapeStructuredText(value) {
     .replace(/,/g, '\\,')
 }
 
+// Basic email validation
 function validEmail(value) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)
 }
 
+// Normalise phone numbers
 function cleanPhone(value) {
   const number = value.trim()
 
@@ -69,7 +99,7 @@ function cleanPhone(value) {
   return number.replace(/[^\d+]/g, '')
 }
 
-// Turn local date/time into UTC calendar format
+// Convert a date into UTC calendar format
 function calendarDate(value) {
   return new Date(value)
     .toISOString()
@@ -77,16 +107,27 @@ function calendarDate(value) {
     .replace(/\.\d{3}Z$/, 'Z')
 }
 
-// Convert the selected form into actual QR code data
+// ==========================================
+// QR DATA GENERATION
+// ==========================================
+
 function createQRData(type, fields) {
   switch (type) {
+    // --------------------------------------
+    // WEBSITE OR PLAIN TEXT
+    // --------------------------------------
+
     case 'link': {
       const value = fields.linkText.trim()
+
       if (!value) return ''
 
       const hasProtocol = /^https?:\/\//i.test(value)
+
       const looksLikeDomain =
-        /^(?:[a-z0-9-]+\.)+[a-z]{2,}(?::\d+)?(?:[/?#][^\s]*)?$/i.test(value)
+        /^(?:[a-z0-9-]+\.)+[a-z]{2,}(?::\d+)?(?:[/?#][^\s]*)?$/i.test(
+          value
+        )
 
       if (hasProtocol || looksLikeDomain) {
         try {
@@ -107,9 +148,12 @@ function createQRData(type, fields) {
         return ''
       }
 
-      // Anything else is treated as plain text
       return value
     }
+
+    // --------------------------------------
+    // WI-FI
+    // --------------------------------------
 
     case 'wifi': {
       if (!fields.ssid.trim()) return ''
@@ -134,8 +178,13 @@ function createQRData(type, fields) {
       )
     }
 
+    // --------------------------------------
+    // CONTACT VCARD
+    // --------------------------------------
+
     case 'contact': {
       const name = fields.contactName.trim()
+
       if (!name) return ''
 
       const parts = [
@@ -159,23 +208,33 @@ function createQRData(type, fields) {
 
       if (fields.contactCompany.trim()) {
         parts.push(
-          `ORG:${escapeStructuredText(fields.contactCompany.trim())}`
+          `ORG:${escapeStructuredText(
+            fields.contactCompany.trim()
+          )}`
         )
       }
 
       parts.push('END:VCARD')
+
       return parts.join('\r\n')
     }
 
+    // --------------------------------------
+    // EMAIL
+    // --------------------------------------
+
     case 'email': {
       const address = fields.emailAddress.trim()
+
       if (!validEmail(address)) return ''
 
       const params = []
 
       if (fields.emailSubject) {
         params.push(
-          `subject=${encodeURIComponent(fields.emailSubject)}`
+          `subject=${encodeURIComponent(
+            fields.emailSubject
+          )}`
         )
       }
 
@@ -185,16 +244,29 @@ function createQRData(type, fields) {
         )
       }
 
-      return `mailto:${address}${params.length ? `?${params.join('&')}` : ''}`
+      return (
+        `mailto:${address}` +
+        (params.length ? `?${params.join('&')}` : '')
+      )
     }
+
+    // --------------------------------------
+    // PHONE
+    // --------------------------------------
 
     case 'phone': {
       const number = cleanPhone(fields.phoneNumber)
+
       return number ? `tel:${number}` : ''
     }
 
+    // --------------------------------------
+    // SMS
+    // --------------------------------------
+
     case 'sms': {
       const number = cleanPhone(fields.smsNumber)
+
       if (!number) return ''
 
       return (
@@ -205,8 +277,13 @@ function createQRData(type, fields) {
       )
     }
 
+    // --------------------------------------
+    // GOOGLE MAPS LOCATION
+    // --------------------------------------
+
     case 'location': {
       const location = fields.location.trim()
+
       if (!location) return ''
 
       return (
@@ -215,8 +292,13 @@ function createQRData(type, fields) {
       )
     }
 
+    // --------------------------------------
+    // CALENDAR EVENT
+    // --------------------------------------
+
     case 'event': {
       const title = fields.eventTitle.trim()
+
       const start = new Date(fields.eventStart)
       const end = new Date(fields.eventEnd)
 
@@ -245,17 +327,24 @@ function createQRData(type, fields) {
 
       if (fields.eventPlace.trim()) {
         lines.push(
-          `LOCATION:${escapeStructuredText(fields.eventPlace.trim())}`
+          `LOCATION:${escapeStructuredText(
+            fields.eventPlace.trim()
+          )}`
         )
       }
 
       if (fields.eventDescription.trim()) {
         lines.push(
-          `DESCRIPTION:${escapeStructuredText(fields.eventDescription.trim())}`
+          `DESCRIPTION:${escapeStructuredText(
+            fields.eventDescription.trim()
+          )}`
         )
       }
 
-      lines.push('END:VEVENT', 'END:VCALENDAR')
+      lines.push(
+        'END:VEVENT',
+        'END:VCALENDAR'
+      )
 
       return lines.join('\r\n')
     }
@@ -265,7 +354,10 @@ function createQRData(type, fields) {
   }
 }
 
-// Reusable input component
+// ==========================================
+// REUSABLE FORM FIELD
+// ==========================================
+
 function FormField({
   id,
   label,
@@ -278,24 +370,55 @@ function FormField({
       <label htmlFor={id}>{label}</label>
 
       {multiline ? (
-        <textarea id={id} rows={3} {...props} />
+        <textarea
+          id={id}
+          rows={3}
+          {...props}
+        />
       ) : (
-        <input id={id} type="text" {...props} />
+        <input
+          id={id}
+          type="text"
+          {...props}
+        />
       )}
 
-      {hint && <p className="field-hint">{hint}</p>}
+      {hint && (
+        <p className="field-hint">
+          {hint}
+        </p>
+      )}
     </div>
   )
 }
 
+// ==========================================
+// MAIN APPLICATION
+// ==========================================
+
 function App() {
+  // QR content type
   const [qrType, setQrType] = useState('link')
+
+  // User form inputs
   const [fields, setFields] = useState(initialFields)
 
+  // QR design settings
+  const [design, setDesign] = useState({
+    ...DEFAULT_DESIGN,
+  })
+
+  // Uploaded logo data
+  const [logo, setLogo] = useState('')
+
+  // QR preview references
   const qrContainer = useRef(null)
   const qrCode = useRef(null)
 
-  // Update an individual form field
+  // ----------------------------------------
+  // UPDATE FORM VALUES
+  // ----------------------------------------
+
   const updateField = (name) => (event) => {
     setFields((previous) => ({
       ...previous,
@@ -303,51 +426,78 @@ function App() {
     }))
   }
 
-  // Build QR data based on the currently selected type
+  // ----------------------------------------
+  // GENERATE ENCODED QR DATA
+  // ----------------------------------------
+
   const qrData = useMemo(
     () => createQRData(qrType, fields),
     [qrType, fields]
   )
 
-  // Render the QR code
+  // ----------------------------------------
+  // VALIDATE DESIGN
+  // ----------------------------------------
+
+  const { safe: safeContrast } =
+    getContrastInfo(design)
+
+  const canGenerate =
+    Boolean(qrData) && safeContrast
+
+  // ----------------------------------------
+  // GENERATE QR PREVIEW
+  // ----------------------------------------
+
   useEffect(() => {
     const container = qrContainer.current
+
     if (!container) return
 
+    // Remove previous QR output
     container.replaceChildren()
     qrCode.current = null
 
-    if (!qrData) return
+    if (!canGenerate) return
 
-    const instance = new QRCodeStyling({
-      width: 280,
-      height: 280,
-      type: 'svg',
-      data: qrData,
-      margin: 12,
-      qrOptions: {
-        errorCorrectionLevel: 'Q',
-      },
-      dotsOptions: {
-        color: '#111827',
-        type: 'square',
-      },
-      backgroundOptions: {
-        color: '#ffffff',
-      },
-    })
+    try {
+      // Generate QR configuration
+      const options = makeQROptions(
+        qrData,
+        design,
+        logo
+      )
 
-    instance.append(container)
-    qrCode.current = instance
+      // Create QR code instance
+      const instance = new QRCodeStyling(options)
 
+      // Render inside preview container
+      instance.append(container)
+
+      // Store instance for downloads
+      qrCode.current = instance
+    } catch (error) {
+      console.error(
+        'QR generation failed:',
+        error
+      )
+    }
+
+    // Clean up on QR changes
     return () => {
       qrCode.current = null
       container.replaceChildren()
     }
-  }, [qrData])
+  }, [qrData, canGenerate, design, logo])
+
+  // ----------------------------------------
+  // DOWNLOAD QR CODE
+  // ----------------------------------------
 
   const downloadQR = async (format) => {
-    if (!qrCode.current || !qrData) return
+    if (!canGenerate || !qrCode.current) {
+      return
+    }
 
     try {
       await qrCode.current.download({
@@ -355,21 +505,40 @@ function App() {
         extension: format,
       })
     } catch (error) {
-      console.error('Download error:', error)
-      window.alert('Unable to download the QR code.')
+      console.error(
+        'QR download failed:',
+        error
+      )
+
+      window.alert(
+        'Unable to download the QR code. Please try again.'
+      )
     }
   }
+
+  // ----------------------------------------
+  // EVENT DATE VALIDATION
+  // ----------------------------------------
 
   const eventEndInvalid =
     qrType === 'event' &&
     fields.eventStart &&
     fields.eventEnd &&
-    new Date(fields.eventEnd) <= new Date(fields.eventStart)
+    new Date(fields.eventEnd) <=
+      new Date(fields.eventStart)
+
+  // ========================================
+  // APPLICATION INTERFACE
+  // ========================================
 
   return (
     <main className="app">
+
+      {/* PAGE HEADER */}
+
       <div className="page-heading">
         <h1>Free QR Code Generator</h1>
+
         <p>
           Create, customise and download QR codes.
           No registration required.
@@ -377,8 +546,15 @@ function App() {
       </div>
 
       <div className="workspace">
-        {/* Left side: content forms */}
+
+        {/* ==================================
+            LEFT PANEL - QR EDITOR
+        ================================== */}
+
         <section className="editor-panel">
+
+          {/* QR TYPE SELECTION */}
+
           <h2>1. Choose QR type</h2>
 
           <div className="main-types">
@@ -387,18 +563,25 @@ function App() {
                 key={type.id}
                 type="button"
                 className={`type-button ${
-                  qrType === type.id ? 'selected' : ''
+                  qrType === type.id
+                    ? 'selected'
+                    : ''
                 }`}
                 aria-pressed={qrType === type.id}
                 onClick={() => setQrType(type.id)}
               >
-                <span aria-hidden="true">{type.icon}</span>
+                <span aria-hidden="true">
+                  {type.icon}
+                </span>
+
                 {type.label}
               </button>
             ))}
           </div>
 
-          <h3 className="more-heading">More QR types</h3>
+          <h3 className="more-heading">
+            More QR types
+          </h3>
 
           <div className="more-types">
             {MORE_TYPES.map((type) => (
@@ -406,7 +589,9 @@ function App() {
                 key={type.id}
                 type="button"
                 className={`more-button ${
-                  qrType === type.id ? 'selected' : ''
+                  qrType === type.id
+                    ? 'selected'
+                    : ''
                 }`}
                 aria-pressed={qrType === type.id}
                 onClick={() => setQrType(type.id)}
@@ -418,25 +603,29 @@ function App() {
 
           <div className="section-divider" />
 
+          {/* ==================================
+              CONTENT INPUT FORMS
+          ================================== */}
+
           <h2>2. Enter your information</h2>
 
-          {/* Link or text */}
+          {/* LINK / TEXT */}
+
           {qrType === 'link' && (
-            <>
-              <FormField
-                id="link-text"
-                label="Website URL or text"
-                placeholder="https://example.com or any message"
-                value={fields.linkText}
-                onChange={updateField('linkText')}
-                maxLength={1200}
-                multiline
-                hint="Website addresses without https:// are automatically recognised. Other content is encoded as text."
-              />
-            </>
+            <FormField
+              id="link-text"
+              label="Website URL or text"
+              placeholder="https://example.com or any message"
+              value={fields.linkText}
+              onChange={updateField('linkText')}
+              maxLength={1200}
+              multiline
+              hint="Website addresses without https:// are automatically recognised. Other content is encoded as text."
+            />
           )}
 
-          {/* Wi-Fi */}
+          {/* WI-FI */}
+
           {qrType === 'wifi' && (
             <>
               <FormField
@@ -452,14 +641,23 @@ function App() {
                 <label htmlFor="wifi-security">
                   Security type
                 </label>
+
                 <select
                   id="wifi-security"
                   value={fields.wifiSecurity}
                   onChange={updateField('wifiSecurity')}
                 >
-                  <option value="WPA">WPA / WPA2 / WPA3 Personal</option>
-                  <option value="WEP">WEP (legacy)</option>
-                  <option value="nopass">Open network</option>
+                  <option value="WPA">
+                    WPA / WPA2 / WPA3 Personal
+                  </option>
+
+                  <option value="WEP">
+                    WEP (legacy)
+                  </option>
+
+                  <option value="nopass">
+                    Open network
+                  </option>
                 </select>
               </div>
 
@@ -486,17 +684,20 @@ function App() {
                     }))
                   }
                 />
+
                 Hidden Wi-Fi network
               </label>
 
               <p className="help-message">
-                Wi-Fi QR codes contain your network credentials.
-                Use a guest network for public sharing.
+                Wi-Fi QR codes contain your network
+                credentials. Use a guest network for
+                public sharing.
               </p>
             </>
           )}
 
-          {/* Contact */}
+          {/* CONTACT */}
+
           {qrType === 'contact' && (
             <>
               <FormField
@@ -507,6 +708,7 @@ function App() {
                 onChange={updateField('contactName')}
                 maxLength={100}
               />
+
               <FormField
                 id="contact-phone"
                 label="Phone number"
@@ -515,6 +717,7 @@ function App() {
                 onChange={updateField('contactPhone')}
                 maxLength={30}
               />
+
               <FormField
                 id="contact-email"
                 label="Email address"
@@ -524,6 +727,7 @@ function App() {
                 onChange={updateField('contactEmail')}
                 maxLength={150}
               />
+
               <FormField
                 id="contact-company"
                 label="Company (optional)"
@@ -535,7 +739,8 @@ function App() {
             </>
           )}
 
-          {/* Email */}
+          {/* EMAIL */}
+
           {qrType === 'email' && (
             <>
               <FormField
@@ -547,6 +752,7 @@ function App() {
                 onChange={updateField('emailAddress')}
                 maxLength={150}
               />
+
               <FormField
                 id="email-subject"
                 label="Subject (optional)"
@@ -554,6 +760,7 @@ function App() {
                 onChange={updateField('emailSubject')}
                 maxLength={150}
               />
+
               <FormField
                 id="email-body"
                 label="Message (optional)"
@@ -565,7 +772,8 @@ function App() {
             </>
           )}
 
-          {/* Phone */}
+          {/* PHONE */}
+
           {qrType === 'phone' && (
             <FormField
               id="phone"
@@ -578,6 +786,7 @@ function App() {
           )}
 
           {/* SMS */}
+
           {qrType === 'sms' && (
             <>
               <FormField
@@ -588,6 +797,7 @@ function App() {
                 onChange={updateField('smsNumber')}
                 maxLength={30}
               />
+
               <FormField
                 id="sms-message"
                 label="Message (optional)"
@@ -600,7 +810,8 @@ function App() {
             </>
           )}
 
-          {/* Location */}
+          {/* LOCATION */}
+
           {qrType === 'location' && (
             <FormField
               id="location"
@@ -613,7 +824,8 @@ function App() {
             />
           )}
 
-          {/* Calendar event */}
+          {/* CALENDAR EVENT */}
+
           {qrType === 'event' && (
             <>
               <FormField
@@ -643,7 +855,8 @@ function App() {
 
               {eventEndInvalid && (
                 <p className="error-message">
-                  End time must be later than start time.
+                  End time must be later than
+                  start time.
                 </p>
               )}
 
@@ -666,44 +879,83 @@ function App() {
 
               <p className="help-message">
                 Event QR codes use calendar data.
-                Some camera apps may require a compatible QR scanner
-                or calendar importer.
+                Some camera apps may require a
+                compatible QR scanner or calendar importer.
               </p>
             </>
           )}
+
+          {/* ==================================
+              QR DESIGN CUSTOMISATION
+          ================================== */}
+
+          <div className="section-divider" />
+
+          <h2>3. Customise your QR code</h2>
+
+          <QRDesigner
+            design={design}
+            setDesign={setDesign}
+            logo={logo}
+            setLogo={setLogo}
+          />
+
         </section>
 
-        {/* Right side: QR preview */}
+        {/* ==================================
+            RIGHT PANEL - QR PREVIEW
+        ================================== */}
+
         <section className="preview-panel">
-          <h2>3. Your QR code</h2>
+
+          <h2>4. Preview and download</h2>
+
           <p className="preview-description">
             Your QR code updates automatically.
           </p>
 
+          {/* LIVE QR PREVIEW */}
+
           <div className="preview-area">
+
             <div
               ref={qrContainer}
               className="qr-output"
-              hidden={!qrData}
+              hidden={!canGenerate}
             />
 
-            {!qrData && (
+            {!canGenerate && (
               <div className="empty-state">
-                <div className="empty-icon" aria-hidden="true">
+
+                <div
+                  className="empty-icon"
+                  aria-hidden="true"
+                >
                   ▦
                 </div>
-                <p>Your QR code will appear here</p>
+
+                <p>
+                  Your QR code will appear here
+                </p>
+
                 <span>
-                  Complete the fields to generate a code.
+                  {qrData && !safeContrast
+                    ? 'Choose a darker QR colour and a lighter background.'
+                    : 'Complete the fields to generate a QR code.'}
                 </span>
+
               </div>
             )}
+
           </div>
 
+          {/* DOWNLOAD BUTTONS */}
+
           <div className="download-buttons">
+
             <button
               type="button"
-              disabled={!qrData}
+              disabled={!canGenerate}
               onClick={() => downloadQR('png')}
             >
               Download PNG
@@ -711,27 +963,42 @@ function App() {
 
             <button
               type="button"
-              disabled={!qrData}
+              disabled={!canGenerate}
               onClick={() => downloadQR('svg')}
             >
               Download SVG
             </button>
+
           </div>
+
+          {/* QR INFORMATION */}
 
           <div className="preview-note">
             <p>
               Static QR code • No expiration imposed by us
             </p>
+
             <p>
               Generated locally in your browser
             </p>
+
+            <p>
+              Test your QR code before printing
+              or distributing it.
+            </p>
           </div>
+
         </section>
+
       </div>
 
+      {/* FOOTER */}
+
       <footer className="site-footer">
-        Free QR Code Generator • Built with React and JavaScript
+        Free QR Code Generator • Built with React
+        and JavaScript
       </footer>
+
     </main>
   )
 }
