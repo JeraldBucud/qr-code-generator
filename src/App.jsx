@@ -3,6 +3,8 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import QRCodeStyling from 'qr-code-styling'
 
 import QRDesigner from './components/QRDesigner'
+import StudioHeader from './components/StudioHeader'
+import StudioTabs from './components/StudioTabs'
 
 import {
   DEFAULT_DESIGN,
@@ -11,6 +13,7 @@ import {
 } from './qrDesign'
 
 import './App.css'
+import './Studio.css'
 
 // ==========================================
 // QR CODE TYPES
@@ -31,33 +34,26 @@ const MORE_TYPES = [
 ]
 
 // ==========================================
-// INITIAL FORM VALUES
+// DEFAULT FORM VALUES
 // ==========================================
 
 const initialFields = {
   linkText: '',
-
   ssid: '',
   wifiPassword: '',
   wifiSecurity: 'WPA',
   wifiHidden: false,
-
   contactName: '',
   contactPhone: '',
   contactEmail: '',
   contactCompany: '',
-
   emailAddress: '',
   emailSubject: '',
   emailBody: '',
-
   phoneNumber: '',
-
   smsNumber: '',
   smsMessage: '',
-
   location: '',
-
   eventTitle: '',
   eventStart: '',
   eventEnd: '',
@@ -66,15 +62,13 @@ const initialFields = {
 }
 
 // ==========================================
-// DATA FORMATTING HELPERS
+// QR DATA HELPERS
 // ==========================================
 
-// Escape reserved Wi-Fi QR characters
 function escapeWifi(value) {
   return value.replace(/([\\;,:"])/g, '\\$1')
 }
 
-// Escape structured vCard and calendar text
 function escapeStructuredText(value) {
   return value
     .replace(/\\/g, '\\\\')
@@ -83,12 +77,10 @@ function escapeStructuredText(value) {
     .replace(/,/g, '\\,')
 }
 
-// Basic email validation
 function validEmail(value) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)
 }
 
-// Normalise phone numbers
 function cleanPhone(value) {
   const number = value.trim()
 
@@ -99,7 +91,6 @@ function cleanPhone(value) {
   return number.replace(/[^\d+]/g, '')
 }
 
-// Convert a date into UTC calendar format
 function calendarDate(value) {
   return new Date(value)
     .toISOString()
@@ -108,26 +99,19 @@ function calendarDate(value) {
 }
 
 // ==========================================
-// QR DATA GENERATION
+// QR CONTENT GENERATION
 // ==========================================
 
 function createQRData(type, fields) {
   switch (type) {
-    // --------------------------------------
-    // WEBSITE OR PLAIN TEXT
-    // --------------------------------------
-
     case 'link': {
       const value = fields.linkText.trim()
-
       if (!value) return ''
 
       const hasProtocol = /^https?:\/\//i.test(value)
 
       const looksLikeDomain =
-        /^(?:[a-z0-9-]+\.)+[a-z]{2,}(?::\d+)?(?:[/?#][^\s]*)?$/i.test(
-          value
-        )
+        /^(?:[a-z0-9-]+\.)+[a-z]{2,}(?::\d+)?(?:[/?#][^\s]*)?$/i.test(value)
 
       if (hasProtocol || looksLikeDomain) {
         try {
@@ -150,10 +134,6 @@ function createQRData(type, fields) {
 
       return value
     }
-
-    // --------------------------------------
-    // WI-FI
-    // --------------------------------------
 
     case 'wifi': {
       if (!fields.ssid.trim()) return ''
@@ -178,13 +158,8 @@ function createQRData(type, fields) {
       )
     }
 
-    // --------------------------------------
-    // CONTACT VCARD
-    // --------------------------------------
-
     case 'contact': {
       const name = fields.contactName.trim()
-
       if (!name) return ''
 
       const parts = [
@@ -219,22 +194,15 @@ function createQRData(type, fields) {
       return parts.join('\r\n')
     }
 
-    // --------------------------------------
-    // EMAIL
-    // --------------------------------------
-
     case 'email': {
       const address = fields.emailAddress.trim()
-
       if (!validEmail(address)) return ''
 
       const params = []
 
       if (fields.emailSubject) {
         params.push(
-          `subject=${encodeURIComponent(
-            fields.emailSubject
-          )}`
+          `subject=${encodeURIComponent(fields.emailSubject)}`
         )
       }
 
@@ -250,23 +218,13 @@ function createQRData(type, fields) {
       )
     }
 
-    // --------------------------------------
-    // PHONE
-    // --------------------------------------
-
     case 'phone': {
       const number = cleanPhone(fields.phoneNumber)
-
       return number ? `tel:${number}` : ''
     }
 
-    // --------------------------------------
-    // SMS
-    // --------------------------------------
-
     case 'sms': {
       const number = cleanPhone(fields.smsNumber)
-
       if (!number) return ''
 
       return (
@@ -277,13 +235,8 @@ function createQRData(type, fields) {
       )
     }
 
-    // --------------------------------------
-    // GOOGLE MAPS LOCATION
-    // --------------------------------------
-
     case 'location': {
       const location = fields.location.trim()
-
       if (!location) return ''
 
       return (
@@ -292,13 +245,8 @@ function createQRData(type, fields) {
       )
     }
 
-    // --------------------------------------
-    // CALENDAR EVENT
-    // --------------------------------------
-
     case 'event': {
       const title = fields.eventTitle.trim()
-
       const start = new Date(fields.eventStart)
       const end = new Date(fields.eventEnd)
 
@@ -341,10 +289,7 @@ function createQRData(type, fields) {
         )
       }
 
-      lines.push(
-        'END:VEVENT',
-        'END:VCALENDAR'
-      )
+      lines.push('END:VEVENT', 'END:VCALENDAR')
 
       return lines.join('\r\n')
     }
@@ -370,23 +315,13 @@ function FormField({
       <label htmlFor={id}>{label}</label>
 
       {multiline ? (
-        <textarea
-          id={id}
-          rows={3}
-          {...props}
-        />
+        <textarea id={id} rows={3} {...props} />
       ) : (
-        <input
-          id={id}
-          type="text"
-          {...props}
-        />
+        <input id={id} type="text" {...props} />
       )}
 
       {hint && (
-        <p className="field-hint">
-          {hint}
-        </p>
+        <p className="field-hint">{hint}</p>
       )}
     </div>
   )
@@ -397,107 +332,77 @@ function FormField({
 // ==========================================
 
 function App() {
-  // QR content type
   const [qrType, setQrType] = useState('link')
-
-  // User form inputs
   const [fields, setFields] = useState(initialFields)
 
-  // QR design settings
   const [design, setDesign] = useState({
     ...DEFAULT_DESIGN,
   })
 
-  // Uploaded logo data
   const [logo, setLogo] = useState('')
 
-  // QR preview references
+  // New UI state for v0.3.0
+  const [editorTab, setEditorTab] = useState('content')
+
   const qrContainer = useRef(null)
   const qrCode = useRef(null)
 
-  // ----------------------------------------
-  // UPDATE FORM VALUES
-  // ----------------------------------------
-
-  const updateField = (name) => (event) => {
-    setFields((previous) => ({
-      ...previous,
-      [name]: event.target.value,
-    }))
+  function updateField(name) {
+    return (event) => {
+      setFields((previous) => ({
+        ...previous,
+        [name]: event.target.value,
+      }))
+    }
   }
 
-  // ----------------------------------------
-  // GENERATE ENCODED QR DATA
-  // ----------------------------------------
-
+  // Generate data based on selected QR type
   const qrData = useMemo(
     () => createQRData(qrType, fields),
     [qrType, fields]
   )
 
-  // ----------------------------------------
-  // VALIDATE DESIGN
-  // ----------------------------------------
-
-  const { safe: safeContrast } =
-    getContrastInfo(design)
+  // Validate the design
+  const { safe: safeContrast } = getContrastInfo(design)
 
   const canGenerate =
     Boolean(qrData) && safeContrast
 
-  // ----------------------------------------
-  // GENERATE QR PREVIEW
-  // ----------------------------------------
-
+  // Generate QR preview whenever data or design changes
   useEffect(() => {
     const container = qrContainer.current
 
     if (!container) return
 
-    // Remove previous QR output
     container.replaceChildren()
     qrCode.current = null
 
     if (!canGenerate) return
 
     try {
-      // Generate QR configuration
       const options = makeQROptions(
         qrData,
         design,
         logo
       )
 
-      // Create QR code instance
       const instance = new QRCodeStyling(options)
 
-      // Render inside preview container
       instance.append(container)
-
-      // Store instance for downloads
       qrCode.current = instance
     } catch (error) {
-      console.error(
-        'QR generation failed:',
-        error
-      )
+      console.error('QR generation failed:', error)
     }
 
-    // Clean up on QR changes
     return () => {
       qrCode.current = null
       container.replaceChildren()
     }
   }, [qrData, canGenerate, design, logo])
 
-  // ----------------------------------------
-  // DOWNLOAD QR CODE
-  // ----------------------------------------
-
-  const downloadQR = async (format) => {
-    if (!canGenerate || !qrCode.current) {
-      return
-    }
+  // Download PNG or SVG
+  async function downloadQR(format) {
+    if (!canGenerate || !qrCode.current) return
 
     try {
       await qrCode.current.download({
@@ -505,20 +410,13 @@ function App() {
         extension: format,
       })
     } catch (error) {
-      console.error(
-        'QR download failed:',
-        error
-      )
+      console.error('QR download failed:', error)
 
       window.alert(
         'Unable to download the QR code. Please try again.'
       )
     }
   }
-
-  // ----------------------------------------
-  // EVENT DATE VALIDATION
-  // ----------------------------------------
 
   const eventEndInvalid =
     qrType === 'event' &&
@@ -527,394 +425,444 @@ function App() {
     new Date(fields.eventEnd) <=
       new Date(fields.eventStart)
 
-  // ========================================
-  // APPLICATION INTERFACE
-  // ========================================
-
   return (
     <main className="app">
 
-      {/* PAGE HEADER */}
-
-      <div className="page-heading">
-        <h1>Free QR Code Generator</h1>
-
-        <p>
-          Create, customise and download QR codes.
-          No registration required.
-        </p>
-      </div>
+      {/* PRODUCT HEADER AND HERO */}
+      <StudioHeader />
 
       <div className="workspace">
 
         {/* ==================================
-            LEFT PANEL - QR EDITOR
+            LEFT PANEL: EDITOR
         ================================== */}
 
         <section className="editor-panel">
 
-          {/* QR TYPE SELECTION */}
+          <StudioTabs
+            activeTab={editorTab}
+            onChange={setEditorTab}
+          />
 
-          <h2>1. Choose QR type</h2>
+          {/* CONTENT TAB */}
 
-          <div className="main-types">
-            {MAIN_TYPES.map((type) => (
-              <button
-                key={type.id}
-                type="button"
-                className={`type-button ${
-                  qrType === type.id
-                    ? 'selected'
-                    : ''
-                }`}
-                aria-pressed={qrType === type.id}
-                onClick={() => setQrType(type.id)}
-              >
-                <span aria-hidden="true">
-                  {type.icon}
-                </span>
+          <div
+            className="studio-tab-panel"
+            id="studio-panel-content"
+            role="tabpanel"
+            aria-labelledby="studio-tab-content"
+            hidden={editorTab !== 'content'}
+          >
+            <h2 className="studio-panel-title">
+              What would you like to share?
+            </h2>
 
-                {type.label}
-              </button>
-            ))}
-          </div>
+            <p className="studio-panel-description">
+              Choose a QR type and add the information
+              you want to encode.
+            </p>
 
-          <h3 className="more-heading">
-            More QR types
-          </h3>
+            {/* MAIN QR TYPES */}
 
-          <div className="more-types">
-            {MORE_TYPES.map((type) => (
-              <button
-                key={type.id}
-                type="button"
-                className={`more-button ${
-                  qrType === type.id
-                    ? 'selected'
-                    : ''
-                }`}
-                aria-pressed={qrType === type.id}
-                onClick={() => setQrType(type.id)}
-              >
-                {type.label}
-              </button>
-            ))}
-          </div>
+            <div className="main-types">
+              {MAIN_TYPES.map((type) => (
+                <button
+                  key={type.id}
+                  type="button"
+                  className={`type-button ${
+                    qrType === type.id ? 'selected' : ''
+                  }`}
+                  aria-pressed={qrType === type.id}
+                  onClick={() => setQrType(type.id)}
+                >
+                  <span aria-hidden="true">
+                    {type.icon}
+                  </span>
 
-          <div className="section-divider" />
+                  {type.label}
+                </button>
+              ))}
+            </div>
 
-          {/* ==================================
-              CONTENT INPUT FORMS
-          ================================== */}
+            {/* ADDITIONAL QR TYPES */}
 
-          <h2>2. Enter your information</h2>
+            <h3 className="more-heading">
+              More QR types
+            </h3>
 
-          {/* LINK / TEXT */}
+            <div className="more-types">
+              {MORE_TYPES.map((type) => (
+                <button
+                  key={type.id}
+                  type="button"
+                  className={`more-button ${
+                    qrType === type.id ? 'selected' : ''
+                  }`}
+                  aria-pressed={qrType === type.id}
+                  onClick={() => setQrType(type.id)}
+                >
+                  {type.label}
+                </button>
+              ))}
+            </div>
 
-          {qrType === 'link' && (
-            <FormField
-              id="link-text"
-              label="Website URL or text"
-              placeholder="https://example.com or any message"
-              value={fields.linkText}
-              onChange={updateField('linkText')}
-              maxLength={1200}
-              multiline
-              hint="Website addresses without https:// are automatically recognised. Other content is encoded as text."
-            />
-          )}
+            <div className="section-divider" />
 
-          {/* WI-FI */}
+            <h2>Enter your information</h2>
 
-          {qrType === 'wifi' && (
-            <>
+            {/* LINK OR TEXT */}
+
+            {qrType === 'link' && (
               <FormField
-                id="ssid"
-                label="Wi-Fi network name (SSID)"
-                placeholder="Guest Wi-Fi"
-                value={fields.ssid}
-                onChange={updateField('ssid')}
-                maxLength={100}
+                id="link-text"
+                label="Website URL or text"
+                placeholder="https://example.com or any message"
+                value={fields.linkText}
+                onChange={updateField('linkText')}
+                maxLength={1200}
+                multiline
+                hint="Website addresses without https:// are automatically recognised. Other content is encoded as text."
               />
+            )}
 
-              <div className="form-field">
-                <label htmlFor="wifi-security">
-                  Security type
+            {/* WI-FI */}
+
+            {qrType === 'wifi' && (
+              <>
+                <FormField
+                  id="ssid"
+                  label="Wi-Fi network name (SSID)"
+                  placeholder="Guest Wi-Fi"
+                  value={fields.ssid}
+                  onChange={updateField('ssid')}
+                  maxLength={100}
+                />
+
+                <div className="form-field">
+                  <label htmlFor="wifi-security">
+                    Security type
+                  </label>
+
+                  <select
+                    id="wifi-security"
+                    value={fields.wifiSecurity}
+                    onChange={updateField('wifiSecurity')}
+                  >
+                    <option value="WPA">
+                      WPA / WPA2 / WPA3 Personal
+                    </option>
+
+                    <option value="WEP">
+                      WEP (legacy)
+                    </option>
+
+                    <option value="nopass">
+                      Open network
+                    </option>
+                  </select>
+                </div>
+
+                {fields.wifiSecurity !== 'nopass' && (
+                  <FormField
+                    id="wifi-password"
+                    label="Wi-Fi password"
+                    type="password"
+                    placeholder="Enter network password"
+                    value={fields.wifiPassword}
+                    onChange={updateField('wifiPassword')}
+                    maxLength={128}
+                  />
+                )}
+
+                <label className="checkbox-field">
+                  <input
+                    type="checkbox"
+                    checked={fields.wifiHidden}
+                    onChange={(event) =>
+                      setFields((previous) => ({
+                        ...previous,
+                        wifiHidden: event.target.checked,
+                      }))
+                    }
+                  />
+
+                  Hidden Wi-Fi network
                 </label>
 
-                <select
-                  id="wifi-security"
-                  value={fields.wifiSecurity}
-                  onChange={updateField('wifiSecurity')}
-                >
-                  <option value="WPA">
-                    WPA / WPA2 / WPA3 Personal
-                  </option>
+                <p className="help-message">
+                  Wi-Fi QR codes contain your network
+                  credentials. Use a guest network
+                  for public sharing.
+                </p>
+              </>
+            )}
 
-                  <option value="WEP">
-                    WEP (legacy)
-                  </option>
+            {/* CONTACT */}
 
-                  <option value="nopass">
-                    Open network
-                  </option>
-                </select>
-              </div>
-
-              {fields.wifiSecurity !== 'nopass' && (
+            {qrType === 'contact' && (
+              <>
                 <FormField
-                  id="wifi-password"
-                  label="Wi-Fi password"
-                  type="password"
-                  placeholder="Enter network password"
-                  value={fields.wifiPassword}
-                  onChange={updateField('wifiPassword')}
-                  maxLength={128}
-                />
-              )}
-
-              <label className="checkbox-field">
-                <input
-                  type="checkbox"
-                  checked={fields.wifiHidden}
-                  onChange={(event) =>
-                    setFields((previous) => ({
-                      ...previous,
-                      wifiHidden: event.target.checked,
-                    }))
-                  }
+                  id="contact-name"
+                  label="Full name"
+                  placeholder="Jane Smith"
+                  value={fields.contactName}
+                  onChange={updateField('contactName')}
+                  maxLength={100}
                 />
 
-                Hidden Wi-Fi network
-              </label>
+                <FormField
+                  id="contact-phone"
+                  label="Phone number"
+                  placeholder="+61 400 000 000"
+                  value={fields.contactPhone}
+                  onChange={updateField('contactPhone')}
+                  maxLength={30}
+                />
 
-              <p className="help-message">
-                Wi-Fi QR codes contain your network
-                credentials. Use a guest network for
-                public sharing.
-              </p>
-            </>
-          )}
+                <FormField
+                  id="contact-email"
+                  label="Email address"
+                  type="email"
+                  placeholder="jane@example.com"
+                  value={fields.contactEmail}
+                  onChange={updateField('contactEmail')}
+                  maxLength={150}
+                />
 
-          {/* CONTACT */}
+                <FormField
+                  id="contact-company"
+                  label="Company (optional)"
+                  placeholder="Company name"
+                  value={fields.contactCompany}
+                  onChange={updateField('contactCompany')}
+                  maxLength={100}
+                />
+              </>
+            )}
 
-          {qrType === 'contact' && (
-            <>
+            {/* EMAIL */}
+
+            {qrType === 'email' && (
+              <>
+                <FormField
+                  id="email-address"
+                  label="Recipient email"
+                  type="email"
+                  placeholder="hello@example.com"
+                  value={fields.emailAddress}
+                  onChange={updateField('emailAddress')}
+                  maxLength={150}
+                />
+
+                <FormField
+                  id="email-subject"
+                  label="Subject (optional)"
+                  value={fields.emailSubject}
+                  onChange={updateField('emailSubject')}
+                  maxLength={150}
+                />
+
+                <FormField
+                  id="email-body"
+                  label="Message (optional)"
+                  value={fields.emailBody}
+                  onChange={updateField('emailBody')}
+                  maxLength={500}
+                  multiline
+                />
+              </>
+            )}
+
+            {/* PHONE */}
+
+            {qrType === 'phone' && (
               <FormField
-                id="contact-name"
-                label="Full name"
-                placeholder="Jane Smith"
-                value={fields.contactName}
-                onChange={updateField('contactName')}
-                maxLength={100}
-              />
-
-              <FormField
-                id="contact-phone"
+                id="phone"
                 label="Phone number"
                 placeholder="+61 400 000 000"
-                value={fields.contactPhone}
-                onChange={updateField('contactPhone')}
+                value={fields.phoneNumber}
+                onChange={updateField('phoneNumber')}
                 maxLength={30}
               />
+            )}
 
+            {/* SMS */}
+
+            {qrType === 'sms' && (
+              <>
+                <FormField
+                  id="sms-number"
+                  label="Recipient phone number"
+                  placeholder="+61 400 000 000"
+                  value={fields.smsNumber}
+                  onChange={updateField('smsNumber')}
+                  maxLength={30}
+                />
+
+                <FormField
+                  id="sms-message"
+                  label="Message (optional)"
+                  placeholder="Your message..."
+                  value={fields.smsMessage}
+                  onChange={updateField('smsMessage')}
+                  maxLength={500}
+                  multiline
+                />
+              </>
+            )}
+
+            {/* LOCATION */}
+
+            {qrType === 'location' && (
               <FormField
-                id="contact-email"
-                label="Email address"
-                type="email"
-                placeholder="jane@example.com"
-                value={fields.contactEmail}
-                onChange={updateField('contactEmail')}
-                maxLength={150}
+                id="location"
+                label="Address or coordinates"
+                placeholder="Brisbane, Queensland, Australia"
+                value={fields.location}
+                onChange={updateField('location')}
+                maxLength={250}
+                hint="Generates a Google Maps search link."
               />
+            )}
 
-              <FormField
-                id="contact-company"
-                label="Company (optional)"
-                placeholder="Company name"
-                value={fields.contactCompany}
-                onChange={updateField('contactCompany')}
-                maxLength={100}
-              />
-            </>
-          )}
+            {/* CALENDAR EVENT */}
 
-          {/* EMAIL */}
+            {qrType === 'event' && (
+              <>
+                <FormField
+                  id="event-title"
+                  label="Event title"
+                  placeholder="Team meeting"
+                  value={fields.eventTitle}
+                  onChange={updateField('eventTitle')}
+                  maxLength={100}
+                />
 
-          {qrType === 'email' && (
-            <>
-              <FormField
-                id="email-address"
-                label="Recipient email"
-                type="email"
-                placeholder="hello@example.com"
-                value={fields.emailAddress}
-                onChange={updateField('emailAddress')}
-                maxLength={150}
-              />
+                <FormField
+                  id="event-start"
+                  label="Start date and time"
+                  type="datetime-local"
+                  value={fields.eventStart}
+                  onChange={updateField('eventStart')}
+                />
 
-              <FormField
-                id="email-subject"
-                label="Subject (optional)"
-                value={fields.emailSubject}
-                onChange={updateField('emailSubject')}
-                maxLength={150}
-              />
+                <FormField
+                  id="event-end"
+                  label="End date and time"
+                  type="datetime-local"
+                  value={fields.eventEnd}
+                  onChange={updateField('eventEnd')}
+                />
 
-              <FormField
-                id="email-body"
-                label="Message (optional)"
-                value={fields.emailBody}
-                onChange={updateField('emailBody')}
-                maxLength={500}
-                multiline
-              />
-            </>
-          )}
+                {eventEndInvalid && (
+                  <p className="error-message">
+                    End time must be later than start time.
+                  </p>
+                )}
 
-          {/* PHONE */}
+                <FormField
+                  id="event-place"
+                  label="Location (optional)"
+                  value={fields.eventPlace}
+                  onChange={updateField('eventPlace')}
+                  maxLength={120}
+                />
 
-          {qrType === 'phone' && (
-            <FormField
-              id="phone"
-              label="Phone number"
-              placeholder="+61 400 000 000"
-              value={fields.phoneNumber}
-              onChange={updateField('phoneNumber')}
-              maxLength={30}
-            />
-          )}
+                <FormField
+                  id="event-description"
+                  label="Description (optional)"
+                  value={fields.eventDescription}
+                  onChange={updateField('eventDescription')}
+                  maxLength={200}
+                  multiline
+                />
 
-          {/* SMS */}
-
-          {qrType === 'sms' && (
-            <>
-              <FormField
-                id="sms-number"
-                label="Recipient phone number"
-                placeholder="+61 400 000 000"
-                value={fields.smsNumber}
-                onChange={updateField('smsNumber')}
-                maxLength={30}
-              />
-
-              <FormField
-                id="sms-message"
-                label="Message (optional)"
-                placeholder="Your message..."
-                value={fields.smsMessage}
-                onChange={updateField('smsMessage')}
-                maxLength={500}
-                multiline
-              />
-            </>
-          )}
-
-          {/* LOCATION */}
-
-          {qrType === 'location' && (
-            <FormField
-              id="location"
-              label="Address or coordinates"
-              placeholder="Brisbane, Queensland, Australia"
-              value={fields.location}
-              onChange={updateField('location')}
-              maxLength={250}
-              hint="Generates a Google Maps search link."
-            />
-          )}
-
-          {/* CALENDAR EVENT */}
-
-          {qrType === 'event' && (
-            <>
-              <FormField
-                id="event-title"
-                label="Event title"
-                placeholder="Team meeting"
-                value={fields.eventTitle}
-                onChange={updateField('eventTitle')}
-                maxLength={100}
-              />
-
-              <FormField
-                id="event-start"
-                label="Start date and time"
-                type="datetime-local"
-                value={fields.eventStart}
-                onChange={updateField('eventStart')}
-              />
-
-              <FormField
-                id="event-end"
-                label="End date and time"
-                type="datetime-local"
-                value={fields.eventEnd}
-                onChange={updateField('eventEnd')}
-              />
-
-              {eventEndInvalid && (
-                <p className="error-message">
-                  End time must be later than
-                  start time.
+                <p className="help-message">
+                  Event QR codes use calendar data.
+                  Some camera apps may require a compatible
+                  QR scanner or calendar importer.
                 </p>
-              )}
+              </>
+            )}
 
-              <FormField
-                id="event-place"
-                label="Location (optional)"
-                value={fields.eventPlace}
-                onChange={updateField('eventPlace')}
-                maxLength={120}
-              />
+            {/* MOVE TO DESIGN TAB */}
 
-              <FormField
-                id="event-description"
-                label="Description (optional)"
-                value={fields.eventDescription}
-                onChange={updateField('eventDescription')}
-                maxLength={200}
-                multiline
-              />
-
-              <p className="help-message">
-                Event QR codes use calendar data.
-                Some camera apps may require a
-                compatible QR scanner or calendar importer.
-              </p>
-            </>
-          )}
+            <button
+              type="button"
+              className="studio-next-button"
+              onClick={() => setEditorTab('design')}
+            >
+              Continue to design
+              <span aria-hidden="true">→</span>
+            </button>
+          </div>
 
           {/* ==================================
-              QR DESIGN CUSTOMISATION
+              DESIGN TAB
           ================================== */}
 
-          <div className="section-divider" />
+          <div
+            className="studio-tab-panel"
+            id="studio-panel-design"
+            role="tabpanel"
+            aria-labelledby="studio-tab-design"
+            hidden={editorTab !== 'design'}
+          >
+            <h2 className="studio-panel-title">
+              Design your QR code
+            </h2>
 
-          <h2>3. Customise your QR code</h2>
+            <p className="studio-panel-description">
+              Customise the colours, patterns,
+              corners and logo.
+            </p>
 
-          <QRDesigner
-            design={design}
-            setDesign={setDesign}
-            logo={logo}
-            setLogo={setLogo}
-          />
+            <QRDesigner
+              design={design}
+              setDesign={setDesign}
+              logo={logo}
+              setLogo={setLogo}
+            />
+
+            <button
+              type="button"
+              className="studio-back-button"
+              onClick={() => setEditorTab('content')}
+            >
+              <span aria-hidden="true">←</span>
+              Back to content
+            </button>
+          </div>
 
         </section>
 
         {/* ==================================
-            RIGHT PANEL - QR PREVIEW
+            RIGHT PANEL: LIVE PREVIEW
         ================================== */}
 
         <section className="preview-panel">
 
-          <h2>4. Preview and download</h2>
+          <div className="studio-preview-heading">
+            <h2>Live preview</h2>
+
+            <span
+              className={`studio-preview-status ${
+                canGenerate ? 'is-ready' : ''
+              }`}
+            >
+              {canGenerate
+                ? 'Content ready'
+                : qrData && !safeContrast
+                  ? 'Adjust colours'
+                  : 'Awaiting content'}
+            </span>
+          </div>
 
           <p className="preview-description">
             Your QR code updates automatically.
           </p>
 
-          {/* LIVE QR PREVIEW */}
+          {/* QR DISPLAY */}
 
           <div className="preview-area">
 
@@ -926,7 +874,6 @@ function App() {
 
             {!canGenerate && (
               <div className="empty-state">
-
                 <div
                   className="empty-icon"
                   aria-hidden="true"
@@ -940,19 +887,16 @@ function App() {
 
                 <span>
                   {qrData && !safeContrast
-                    ? 'Choose a darker QR colour and a lighter background.'
-                    : 'Complete the fields to generate a QR code.'}
+                    ? 'Use a darker pattern on a lighter background.'
+                    : 'Complete the fields to generate a code.'}
                 </span>
-
               </div>
             )}
-
           </div>
 
-          {/* DOWNLOAD BUTTONS */}
+          {/* DOWNLOAD CONTROLS */}
 
           <div className="download-buttons">
-
             <button
               type="button"
               disabled={!canGenerate}
@@ -968,10 +912,7 @@ function App() {
             >
               Download SVG
             </button>
-
           </div>
-
-          {/* QR INFORMATION */}
 
           <div className="preview-note">
             <p>
@@ -981,24 +922,16 @@ function App() {
             <p>
               Generated locally in your browser
             </p>
-
-            <p>
-              Test your QR code before printing
-              or distributing it.
-            </p>
           </div>
 
         </section>
-
       </div>
 
       {/* FOOTER */}
 
       <footer className="site-footer">
-        Free QR Code Generator • Built with React
-        and JavaScript
+        QR Studio · Free, browser-based QR code creator
       </footer>
-
     </main>
   )
 }
